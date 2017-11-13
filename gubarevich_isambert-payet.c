@@ -1,10 +1,13 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
+#include <omp.h>
+#include <sys/time.h>
 
 
 #define MAX_TEXT_LENGTH 100000
 #define MAX_KEY_LENGTH 20
+#define NUM_THREAD 1
 
 #define PF_NUMBER 8
 int prime_factors[PF_NUMBER] = {2,3,5,7,11,13,17,19};
@@ -54,35 +57,41 @@ int decodePrimeFactorization(int code){
 int computeKeyLength(char *text){
   int length = strlen(text);
   int *num_facts = malloc((1<<PF_NUMBER) * sizeof(int));
-  //parallelisable TODO
-  for (int i=0; i<(1<<PF_NUMBER) ; i++)
-    num_facts[i] = 0;
-
-  //parallelisable TODO
-  for (int i=0; i<length; i++){
-      //for avec pas par default
-    for (int j=i+1; j<length; j++){
-      if (text[i] == text[j]){
-        int k = 1;
-        while (text[i+k] == text[j+k])
-          k++;
-        if (k >= 3){
-          int fact = encodePrimeFactorization(j-i);
-          num_facts[fact] ++;
-          break;
-        }
-      }
-    }
-  }
-
   int max_num_facts = 0;
   int most_frequent_fact;
-  //parallelisable avec clause max TODO
-  for (int i=0; i<(1<<PF_NUMBER) ; i++){
-    if (num_facts[i] > max_num_facts){
-      max_num_facts = num_facts[i];
-      //ATTENTION
-      most_frequent_fact = i;
+#pragma omp parallel num_threads(NUM_THREAD)
+  {
+    #pragma omp for
+    //parallelisable
+    for (int i=0; i<(1<<PF_NUMBER) ; i++)
+        num_facts[i] = 0;
+
+    #pragma omp for schedule(dynamic)
+    //parallelisable
+    for (int i=0; i<length; i++){
+        //for avec pas par default
+        for (int j=i+1; j<length; j++){
+            if (text[i] == text[j]){
+                int k = 1;
+                while (text[i+k] == text[j+k])k++;
+                if (k >= 3){
+                    int fact = encodePrimeFactorization(j-i);
+                    num_facts[fact] ++;
+                    break;
+                }
+            }
+        }
+    }
+    
+    //parallelisable avec clause max 
+    #pragma omp for reduction(max:max_num_facts)
+    for (int i=0; i<(1<<PF_NUMBER) ; i++){
+        if (num_facts[i] > max_num_facts){
+            max_num_facts = num_facts[i];
+            //ATTENTION
+            #pragma omp atomic write
+            most_frequent_fact = i;
+        }
     }
   }
   free(num_facts);
@@ -95,32 +104,38 @@ char *computeKey(int key_length, char *text){
   char *key = (char*) malloc((key_length+1) * sizeof(char));
   int text_length = strlen(text);
   int **histogram = (int **) malloc(key_length * sizeof(int *));
-  //parallelisable j private TODO
-  for (int i=0; i<key_length ; i++){
-    histogram[i] = malloc(26 * sizeof(int));
-    for (int j=0; j<26 ; j++)
-      histogram[i][j] = 0;
-  }
+  #pragma omp parallel num_threads(NUM_THREAD)
+  {
+    //parallelisable
+    #pragma omp for
+    for (int i=0; i<key_length ; i++){
+        histogram[i] = malloc(26 * sizeof(int));
+        for (int j=0; j<26 ; j++)
+            histogram[i][j] = 0;
+    }
 
-//parallelisable j private TODO
-  for (int i=0; i<key_length; i++){
-    for (int j=i; j<text_length ; j+=key_length){
-      histogram[i][text[j]-'A']++;
+    //parallelisable
+    #pragma omp for
+    for (int i=0; i<key_length; i++){
+        for (int j=i; j<text_length ; j+=key_length){
+            histogram[i][text[j]-'A']++;
+        }
+        int max = 0;
+        int most_frequent_letter;
+        for (int j=0; j<26 ; j++){
+            if (histogram[i][j] > max){
+                max = histogram[i][j];
+                most_frequent_letter = j;
+            }
+        }
+        key[i] = (char) (((most_frequent_letter - ('E'-'A') + 26) % 26) + 'A') ;
     }
-    int max = 0;
-    int most_frequent_letter;
-    for (int j=0; j<26 ; j++){
-      if (histogram[i][j] > max){
-        max = histogram[i][j];
-        most_frequent_letter = j;
-      }
-    }
-    key[i] = (char) (((most_frequent_letter - ('E'-'A') + 26) % 26) + 'A') ;
+    key[key_length] = 0;
+    //parallelisable
+    #pragma omp for
+    for (int i=0; i<key_length ; i++)
+        free(histogram[i]);
   }
-  key[key_length] = 0;
-  //parallelisable TODO
-  for (int i=0; i<key_length ; i++)
-    free(histogram[i]);
   free(histogram);
   return(key);
 }
@@ -133,7 +148,8 @@ char *decipher(char *ciphertext, char *key){
 
   char * cleartext = malloc(text_length * sizeof(char));
   int j = 0;
-  //parallelisable TODO portion de long key_length
+  //parallelisable  portion de long key_length
+  #pragma omp parallel for schedule(static,key_length) private(j) num_threads(NUM_THREAD)
   for (int i=0; i < text_length; i++){
     cleartext[i] = ((ciphertext[i] -'A' - key[j] + 'A' + 26) % 26) + 'A';
     j = (j+1) % key_length;
