@@ -61,15 +61,13 @@ int computeKeyLength(char *text){
   int *num_facts = malloc((1<<PF_NUMBER) * sizeof(int));
   int max_num_facts = 0;
   int most_frequent_fact;
-#pragma omp parallel num_threads(NUM_THREAD)
-  {
 
     
     #pragma omp for
     //parallelisable
     for (int i=0; i<(1<<PF_NUMBER) ; i++)
         num_facts[i] = 0;
-    #pragma omp for schedule(dynamic)
+    #pragma omp parallel for schedule(dynamic)  num_threads(NUM_THREAD)
     //parallelisable for avec pas par default
     for (int i=0; i<length; i++){
         for (int j=i+1; j<length; j++){
@@ -85,7 +83,6 @@ int computeKeyLength(char *text){
         }
     }
 
-  }
     //pas parallelisable parce que tout le code dans critical
     for (int i=0; i<(1<<PF_NUMBER) ; i++){
         if (num_facts[i] > max_num_facts){
