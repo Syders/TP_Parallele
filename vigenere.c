@@ -54,13 +54,10 @@ int decodePrimeFactorization(int code){
 int computeKeyLength(char *text){
   int length = strlen(text);
   int *num_facts = malloc((1<<PF_NUMBER) * sizeof(int));
-  //parallelisable TODO
   for (int i=0; i<(1<<PF_NUMBER) ; i++)
     num_facts[i] = 0;
 
-  //parallelisable TODO
   for (int i=0; i<length; i++){
-      //for avec pas par default
     for (int j=i+1; j<length; j++){
       if (text[i] == text[j]){
         int k = 1;
@@ -77,11 +74,9 @@ int computeKeyLength(char *text){
 
   int max_num_facts = 0;
   int most_frequent_fact;
-  //parallelisable avec clause max TODO
   for (int i=0; i<(1<<PF_NUMBER) ; i++){
     if (num_facts[i] > max_num_facts){
       max_num_facts = num_facts[i];
-      //ATTENTION
       most_frequent_fact = i;
     }
   }
@@ -95,14 +90,12 @@ char *computeKey(int key_length, char *text){
   char *key = (char*) malloc((key_length+1) * sizeof(char));
   int text_length = strlen(text);
   int **histogram = (int **) malloc(key_length * sizeof(int *));
-  //parallelisable j private TODO
   for (int i=0; i<key_length ; i++){
     histogram[i] = malloc(26 * sizeof(int));
     for (int j=0; j<26 ; j++)
       histogram[i][j] = 0;
   }
 
-//parallelisable j private TODO
   for (int i=0; i<key_length; i++){
     for (int j=i; j<text_length ; j+=key_length){
       histogram[i][text[j]-'A']++;
@@ -118,7 +111,6 @@ char *computeKey(int key_length, char *text){
     key[i] = (char) (((most_frequent_letter - ('E'-'A') + 26) % 26) + 'A') ;
   }
   key[key_length] = 0;
-  //parallelisable TODO
   for (int i=0; i<key_length ; i++)
     free(histogram[i]);
   free(histogram);
@@ -133,10 +125,9 @@ char *decipher(char *ciphertext, char *key){
 
   char * cleartext = malloc(text_length * sizeof(char));
   int j = 0;
-  //parallelisable TODO portion de long key_length
   for (int i=0; i < text_length; i++){
     cleartext[i] = ((ciphertext[i] -'A' - key[j] + 'A' + 26) % 26) + 'A';
-    j = (j+1) % key_length;
+    j = (j+1) % (key_length);
   }
   return cleartext;
 }
