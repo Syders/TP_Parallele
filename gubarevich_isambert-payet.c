@@ -7,13 +7,13 @@
 
 #define MAX_TEXT_LENGTH 100000
 #define MAX_KEY_LENGTH 20
-#define NUM_THREAD 1
+#define NUM_THREAD 4
 
 #define PF_NUMBER 8
 int prime_factors[PF_NUMBER] = {2,3,5,7,11,13,17,19};
 
 // ------------------------------------------------------
-char * readText(char *filename){;
+char * readText(char *filename){
   FILE *f = fopen(filename,"r");
   if (f == NULL) {
     fprintf(stderr,"File %s not found...\n",filename);
@@ -31,6 +31,7 @@ char * readText(char *filename){;
 // ------------------------------------------------------
 int encodePrimeFactorization(int number){
   int code = 0;
+  //pas parallelisable parce que code
   for (int i=PF_NUMBER-1; i>=0 ; i--){
     code = code * 2;
     int f = prime_factors[i];
@@ -44,6 +45,7 @@ int encodePrimeFactorization(int number){
 // ------------------------------------------------------
 int decodePrimeFactorization(int code){
   int prod = 1;
+  //pas parallelisable parce que 1)code 2)appele par partie parallele
   for (int j=0; j<PF_NUMBER ; j++){
     if ((code & 1) == 1){
       prod = prod * prime_factors[j];
@@ -61,15 +63,15 @@ int computeKeyLength(char *text){
   int most_frequent_fact;
 #pragma omp parallel num_threads(NUM_THREAD)
   {
+
+    
     #pragma omp for
     //parallelisable
     for (int i=0; i<(1<<PF_NUMBER) ; i++)
         num_facts[i] = 0;
-
     #pragma omp for schedule(dynamic)
-    //parallelisable
+    //parallelisable for avec pas par default
     for (int i=0; i<length; i++){
-        //for avec pas par default
         for (int j=i+1; j<length; j++){
             if (text[i] == text[j]){
                 int k = 1;
@@ -82,18 +84,16 @@ int computeKeyLength(char *text){
             }
         }
     }
-    
-    //parallelisable avec clause max 
-    #pragma omp for reduction(max:max_num_facts)
+
+  }
+    //pas parallelisable parce que tout le code dans critical
     for (int i=0; i<(1<<PF_NUMBER) ; i++){
         if (num_facts[i] > max_num_facts){
             max_num_facts = num_facts[i];
             //ATTENTION
-            #pragma omp atomic write
             most_frequent_fact = i;
         }
     }
-  }
   free(num_facts);
   int key_length = decodePrimeFactorization(most_frequent_fact);
   return(key_length);
@@ -159,11 +159,12 @@ char *decipher(char *ciphertext, char *key){
 
 // ------------------------------------------------------
 int main(int argc, char **argv) {
+    double start = omp_get_wtime();
     if (argc!=2){
       printf("Usage : vigenere <input file>\n\n");
       return 1;
     }
-
+    
     char *ciphertext = readText(argv[1]);
     printf("---- Ciphertext ----\n");
     printf("%s\n\n",ciphertext);
@@ -180,5 +181,7 @@ int main(int argc, char **argv) {
   free(ciphertext);
   free(key);
   free(cleartext);
+  double stop = omp_get_wtime();
+  printf("Temps total : %f\n",stop-start);
   return 0;
 }
