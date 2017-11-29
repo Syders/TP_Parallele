@@ -63,8 +63,7 @@ int computeKeyLength(char *text){
   int most_frequent_fact;
 
     
-    #pragma omp for
-    //parallelisable
+    //pas parallelisable perte du temps
     for (int i=0; i<(1<<PF_NUMBER) ; i++)
         num_facts[i] = 0;
     #pragma omp parallel for schedule(dynamic)  num_threads(NUM_THREAD)
