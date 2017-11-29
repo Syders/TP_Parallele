@@ -45,7 +45,7 @@ int encodePrimeFactorization(int number){
 // ------------------------------------------------------
 int decodePrimeFactorization(int code){
   int prod = 1;
-  //pas parallelisable parce que 1)code 2)appele par partie parallele
+  //pas parallelisable parce que code
   for (int j=0; j<PF_NUMBER ; j++){
     if ((code & 1) == 1){
       prod = prod * prime_factors[j];
