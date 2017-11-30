@@ -7,13 +7,13 @@
 
 #define MAX_TEXT_LENGTH 100000
 #define MAX_KEY_LENGTH 20
-#define NUM_THREAD 4
+#define NUM_THREAD 1
 
 #define PF_NUMBER 8
 int prime_factors[PF_NUMBER] = {2,3,5,7,11,13,17,19};
 
 // ------------------------------------------------------
-char * readText(char *filename){
+char * readText(char *filename){;
   FILE *f = fopen(filename,"r");
   if (f == NULL) {
     fprintf(stderr,"File %s not found...\n",filename);
@@ -31,7 +31,6 @@ char * readText(char *filename){
 // ------------------------------------------------------
 int encodePrimeFactorization(int number){
   int code = 0;
-  //pas parallelisable parce que code
   for (int i=PF_NUMBER-1; i>=0 ; i--){
     code = code * 2;
     int f = prime_factors[i];
@@ -45,7 +44,6 @@ int encodePrimeFactorization(int number){
 // ------------------------------------------------------
 int decodePrimeFactorization(int code){
   int prod = 1;
-  //pas parallelisable parce que code
   for (int j=0; j<PF_NUMBER ; j++){
     if ((code & 1) == 1){
       prod = prod * prime_factors[j];
@@ -61,14 +59,15 @@ int computeKeyLength(char *text){
   int *num_facts = malloc((1<<PF_NUMBER) * sizeof(int));
   int max_num_facts = 0;
   int most_frequent_fact;
-
-    
-    //pas parallelisable perte du temps
-    for (int i=0; i<(1<<PF_NUMBER) ; i++)
+  //parallelisable mais inefficace
+  for (int i=0; i<(1<<PF_NUMBER) ; i++)
         num_facts[i] = 0;
-    #pragma omp parallel for schedule(dynamic)  num_threads(NUM_THREAD)
-    //parallelisable for avec pas par default
+#pragma omp parallel num_threads(NUM_THREAD)
+  {
+    #pragma omp for schedule(dynamic)
+    //parallelisable
     for (int i=0; i<length; i++){
+        //for avec pas par default
         for (int j=i+1; j<length; j++){
             if (text[i] == text[j]){
                 int k = 1;
@@ -81,15 +80,14 @@ int computeKeyLength(char *text){
             }
         }
     }
-
-    //pas parallelisable parce que tout le code dans critical
-    for (int i=0; i<(1<<PF_NUMBER) ; i++){
-        if (num_facts[i] > max_num_facts){
-            max_num_facts = num_facts[i];
-            //ATTENTION
-            most_frequent_fact = i;
-        }
-    }
+  }
+  //parallelisable mais perte de temps
+  for (int i=0; i<(1<<PF_NUMBER) ; i++){
+      if (num_facts[i] > max_num_facts){
+          max_num_facts = num_facts[i];
+          most_frequent_fact = i;
+      }
+  }
   free(num_facts);
   int key_length = decodePrimeFactorization(most_frequent_fact);
   return(key_length);
@@ -100,15 +98,16 @@ char *computeKey(int key_length, char *text){
   char *key = (char*) malloc((key_length+1) * sizeof(char));
   int text_length = strlen(text);
   int **histogram = (int **) malloc(key_length * sizeof(int *));
-    //pas parallelisable perte de temps
-    for (int i=0; i<key_length ; i++){
-        histogram[i] = malloc(26 * sizeof(int));
-        for (int j=0; j<26 ; j++)
-            histogram[i][j] = 0;
-    }
-
+  //parallelisable mais inefficace
+  for (int i=0; i<key_length ; i++){
+      histogram[i] = malloc(26 * sizeof(int));
+      for (int j=0; j<26 ; j++)
+          histogram[i][j] = 0;
+  }
+#pragma omp parallel num_threads(NUM_THREAD)
+  {
     //parallelisable
-    #pragma omp parallel for num_threads(NUM_THREAD)
+    #pragma omp for
     for (int i=0; i<key_length; i++){
         for (int j=i; j<text_length ; j+=key_length){
             histogram[i][text[j]-'A']++;
@@ -124,9 +123,11 @@ char *computeKey(int key_length, char *text){
         key[i] = (char) (((most_frequent_letter - ('E'-'A') + 26) % 26) + 'A') ;
     }
     key[key_length] = 0;
-    //pas parallelisable pas de gain de temps
+  }
+    //parallelisable mais inefficace
     for (int i=0; i<key_length ; i++)
         free(histogram[i]);
+  
   free(histogram);
   return(key);
 }
@@ -150,12 +151,11 @@ char *decipher(char *ciphertext, char *key){
 
 // ------------------------------------------------------
 int main(int argc, char **argv) {
-    double start = omp_get_wtime();
     if (argc!=2){
       printf("Usage : vigenere <input file>\n\n");
       return 1;
     }
-    
+
     char *ciphertext = readText(argv[1]);
     printf("---- Ciphertext ----\n");
     printf("%s\n\n",ciphertext);
@@ -172,7 +172,5 @@ int main(int argc, char **argv) {
   free(ciphertext);
   free(key);
   free(cleartext);
-  double stop = omp_get_wtime();
-  printf("Temps total : %f\n",stop-start);
   return 0;
 }
