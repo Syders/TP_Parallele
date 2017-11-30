@@ -100,10 +100,7 @@ char *computeKey(int key_length, char *text){
   char *key = (char*) malloc((key_length+1) * sizeof(char));
   int text_length = strlen(text);
   int **histogram = (int **) malloc(key_length * sizeof(int *));
-  #pragma omp parallel num_threads(NUM_THREAD)
-  {
-    //parallelisable
-    #pragma omp for
+    //pas parallelisable perte de temps
     for (int i=0; i<key_length ; i++){
         histogram[i] = malloc(26 * sizeof(int));
         for (int j=0; j<26 ; j++)
@@ -111,7 +108,7 @@ char *computeKey(int key_length, char *text){
     }
 
     //parallelisable
-    #pragma omp for
+    #pragma omp parallel for num_threads(NUM_THREAD)
     for (int i=0; i<key_length; i++){
         for (int j=i; j<text_length ; j+=key_length){
             histogram[i][text[j]-'A']++;
@@ -127,11 +124,9 @@ char *computeKey(int key_length, char *text){
         key[i] = (char) (((most_frequent_letter - ('E'-'A') + 26) % 26) + 'A') ;
     }
     key[key_length] = 0;
-    //parallelisable
-    #pragma omp for
+    //pas parallelisable pas de gain de temps
     for (int i=0; i<key_length ; i++)
         free(histogram[i]);
-  }
   free(histogram);
   return(key);
 }
